@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
 import requests
 import json
 from datetime import datetime
@@ -66,33 +68,111 @@ def get_performance_since_ipo(stock: str) -> str:
     url = f"https://api.sectors.app/v1/listing-performance/{stock}/"
     return retrieve_from_endpoint(url)
 
+@tool
+def generate_chart(data: str, chart_config: str = None) -> str:
+    """
+    Generate a chart from provided data.
+    
+    Args:
+        data: JSON string containing the data to plot
+        chart_config: JSON string containing chart configuration like:
+            {
+                "type": "line/bar",
+                "x": "x column name",
+                "y": "y column name",
+                "title": "chart title"
+            }
+    
+    Returns:
+        str: A message confirming the chart has been generated
+    """
+    try:
+        # Parse the data
+        df = pd.DataFrame(json.loads(data))
+        
+        # Parse chart configuration
+        config = json.loads(chart_config) if chart_config else {}
+        chart_type = config.get('type', 'line')
+        x_col = config.get('x', df.columns[0])
+        y_col = config.get('y', df.columns[1])
+        title = config.get('title', f'{y_col} vs {x_col}')
+        
+        # Create figure based on chart type
+        if chart_type == 'line':
+            fig = go.Figure(data=[
+                go.Scatter(
+                    x=df[x_col],
+                    y=df[y_col],
+                    mode='lines',
+                    name=y_col
+                )
+            ])
+        elif chart_type == 'bar':
+            fig = go.Figure(data=[
+                go.Bar(
+                    x=df[x_col],
+                    y=df[y_col],
+                    name=y_col
+                )
+            ])
+        
+        # Update layout
+        fig.update_layout(
+            title=title,
+            xaxis_title=x_col,
+            yaxis_title=y_col,
+            template="plotly_dark",
+            hovermode='x unified'
+        )
+        
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+        
+        return f"Generated {chart_type} chart showing {y_col} vs {x_col}"
+        
+    except Exception as e:
+        return f"Error generating chart: {str(e)}"
+
 def setup_agent():
     tools = [
         get_company_overview,
         get_top_companies_by_tx_volume,
         get_daily_tx,
-        get_performance_since_ipo
+        get_performance_since_ipo,
+        generate_chart  # Add the chart generation tool
     ]
 
     def get_today_date() -> str:
-        """
-        Get today's date
-        """
         from datetime import date
-
         today = date.today()
         return today.strftime("%Y-%m-%d")
+
     prompt = ChatPromptTemplate.from_messages([
         (
             "system",
-            """Answer the following queries, being as factual and analytical as you can. 
-            If you need the start and end dates but they are not explicitly provided, 
-            infer from the query. Whenever you return a list of names, return also the 
-            corresponding values for each name. If the volume was about a single day, 
-            the start and end parameter should be the same. Note that the endpoint for 
-            performance since IPO has only one required parameter, which is the stock. 
-            Today's date is """
-            + get_today_date()
+            """You are a financial analysis assistant capable of both analyzing data and creating visualizations.
+            When handling data that could benefit from visualization:
+            
+            1. First fetch the data using appropriate data retrieval tools
+            2. Then use the generate_chart tool to create visualizations. The tool needs:
+               - data: The actual data as a JSON string
+               - chart_config: A JSON string with visualization preferences like:
+                 {{
+                     "type": "line" or "bar",
+                     "x": "column name for x-axis",
+                     "y": "column name for y-axis",
+                     "title": "chart title"
+                 }}
+            
+            Example for time series:
+            - After getting daily transaction data, create a line chart:
+              generate_chart(data_result, '{{"type": "line", "x": "date", "y": "close", "title": "Stock Price Over Time"}}')
+            
+            Example for comparisons:
+            - After getting top traded stocks, create a bar chart:
+              generate_chart(data_result, '{{"type": "bar", "x": "symbol", "y": "volume", "title": "Trading Volume by Stock"}}')
+            
+            Today's date is """ + get_today_date()
         ),
         ("human", "{input}"),
         MessagesPlaceholder("agent_scratchpad"),
