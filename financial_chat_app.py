@@ -46,11 +46,32 @@ def get_daily_tx(stock: str, start_date: str, end_date: str) -> str:
     url = f"https://api.sectors.app/v1/daily/{stock}/?start={start_date}&end={end_date}"
     return retrieve_from_endpoint(url)
 
+@tool
+def get_performance_since_ipo(stock: str) -> str:
+    """
+    Get the historical performance of a stock since its IPO listing.
+    Only works for stocks listed after May 2005.
+    
+    Args:
+        ticker (str): The stock ticker symbol (e.g., 'ACES', 'ADMR')
+    
+    Returns:
+        str: JSON string containing performance metrics including:
+            - symbol: The ticker symbol
+            - chg_7d: Price change in last 7 days
+            - chg_30d: Price change in last 30 days
+            - chg_90d: Price change in last 90 days
+            - chg_365d: Price change in last 365 days
+    """
+    url = f"https://api.sectors.app/v1/listing-performance/{stock}/"
+    return retrieve_from_endpoint(url)
+
 def setup_agent():
     tools = [
         get_company_overview,
         get_top_companies_by_tx_volume,
-        get_daily_tx
+        get_daily_tx,
+        get_performance_since_ipo
     ]
 
     prompt = ChatPromptTemplate.from_messages([
