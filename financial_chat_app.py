@@ -74,15 +74,25 @@ def setup_agent():
         get_performance_since_ipo
     ]
 
+    def get_today_date() -> str:
+        """
+        Get today's date
+        """
+        from datetime import date
+
+        today = date.today()
+        return today.strftime("%Y-%m-%d")
     prompt = ChatPromptTemplate.from_messages([
         (
             "system",
-            """Answer the following queries, being as factual and analytical 
-            as you can. If you need the start and end dates but they are not 
-            explicitly provided, infer from the query. Whenever you return a 
-            list of names, return also the corresponding values for each name. 
-            If the volume was about a single day, the start and end 
-            parameter should be the same."""
+            """Answer the following queries, being as factual and analytical as you can. 
+            If you need the start and end dates but they are not explicitly provided, 
+            infer from the query. Whenever you return a list of names, return also the 
+            corresponding values for each name. If the volume was about a single day, 
+            the start and end parameter should be the same. Note that the endpoint for 
+            performance since IPO has only one required parameter, which is the stock. 
+            Today's date is """
+            + get_today_date()
         ),
         ("human", "{input}"),
         MessagesPlaceholder("agent_scratchpad"),
