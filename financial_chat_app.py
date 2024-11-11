@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.tools import tool
+from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
 
 # Initialize session state
 def init_session_state():
@@ -80,11 +81,10 @@ def setup_agent():
 
     return AgentExecutor(agent=agent, tools=tools, verbose=True)
 
-def add_message(role, content, intermediate_steps=None):
+def add_message(role, content):
     st.session_state.messages.append({
         "role": role,
         "content": content,
-        "steps": intermediate_steps,
         "timestamp": datetime.now()
     })
 
@@ -109,13 +109,6 @@ def main():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.write(message["content"])
-            
-            # Display intermediate steps if they exist
-            if message["steps"]:
-                with st.expander("Show intermediate steps"):
-                    for step in message["steps"]:
-                        st.write("🔍 Tool Called:", step[0])
-                        st.write("📊 Result:", step[1])
     
     # Chat input
     if prompt := st.chat_input("Ask about stock market data..."):
@@ -127,27 +120,21 @@ def main():
         # Process with agent
         try:
             agent_executor = setup_agent()
-            with st.spinner("Thinking..."):
+            with st.chat_message("assistant"):
+                # Create a container for the callback handler
+                callback_container = st.container()
+                st_callback = StreamlitCallbackHandler(callback_container)
+                
+                # Run agent with callback handler
                 response = agent_executor.invoke(
                     {"input": prompt},
-                    {"return_intermediate_steps": True}
+                    {"callbacks": [st_callback]}
                 )
                 
-                # Extract response and steps
-                answer = response["output"]
-                steps = response["intermediate_steps"]
+                # Add and display the final response
+                add_message("assistant", response["output"])
+                st.write(response["output"])
                 
-                # Add assistant response with intermediate steps
-                add_message("assistant", answer, steps)
-                
-                # Display response and steps
-                with st.chat_message("assistant"):
-                    st.write(answer)
-                    with st.expander("Show intermediate steps"):
-                        for step in steps:
-                            st.write("🔍 Tool Called:", step[0])
-                            st.write("📊 Result:", step[1])
-                            
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
